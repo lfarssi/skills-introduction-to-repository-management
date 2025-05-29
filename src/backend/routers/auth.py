@@ -13,20 +13,29 @@ router = APIRouter(
     tags=["auth"]
 )
 
+from argon2 import PasswordHasher
+
+ph = PasswordHasher()
+
 def hash_password(password):
-    """Hash password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash password using Argon2"""
+    return ph.hash(password)
 
 @router.post("/login")
 def login(username: str, password: str) -> Dict[str, Any]:
     """Login a teacher account"""
     # Hash the provided password
-    hashed_password = hash_password(password)
-    
     # Find the teacher in the database
     teacher = teachers_collection.find_one({"_id": username})
     
-    if not teacher or teacher["password"] != hashed_password:
+    if not teacher:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    
+    try:
+        # Verify the provided password against the stored hash
+        if not ph.verify(teacher["password"], password):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid username or password")
     
     # Return teacher information (excluding password)
